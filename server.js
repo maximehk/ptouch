@@ -131,9 +131,15 @@ function buildArgs(payload, previewPath, uploadedFiles) {
     }
   }
 
-  for (let i = 0; i < valid.length; i++) {
-    const { label, lines, file } = valid[i];
-    const isLast = i === valid.length - 1;
+  const expanded = [];
+  for (const item of valid) {
+    const qty = Math.max(1, parseInt(item.label.qty) || 1);
+    for (let q = 0; q < qty; q++) expanded.push(item);
+  }
+
+  for (let i = 0; i < expanded.length; i++) {
+    const { label, lines, file } = expanded[i];
+    const isLast = i === expanded.length - 1;
 
     if (label.pad != null && label.pad !== '') args.push(`--pad=${label.pad}`);
 

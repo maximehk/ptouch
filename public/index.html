@@ -119,12 +119,14 @@
     <div class="panel">
       <div class="panel-header">
         <h1>P-Touch Label Printer</h1>
-        <button class="btn-secondary" id="add-label-btn">+ Add label</button>
       </div>
       <div id="labels-list">
         <p id="empty-msg" style="color:var(--text-dim);font-size:.85rem;text-align:center;padding:20px 0">
-          No labels yet — click <strong>+ Add label</strong>
+          No labels yet
         </p>
+      </div>
+      <div style="margin-top:10px">
+        <button class="btn-secondary" id="add-label-btn">+ Add label</button>
       </div>
       <div id="preview-area">
         <div class="sep"></div>
@@ -224,12 +226,15 @@ function uid() {
 
 // ── label model ───────────────────────────────────────────────────────────────
 function makeLabel() {
-  return { id: uid(), type: 'text', lines: [''], pad: '' };
+  return { id: uid(), type: 'text', lines: [''], pad: 28, qty: 1 };
 }
 
 function addLabel() {
   labels.push(makeLabel());
   renderAll();
+  const cards = document.querySelectorAll('.label-card');
+  const last = cards[cards.length - 1];
+  if (last) last.querySelector('textarea')?.focus();
 }
 
 function removeLabel(id) {
@@ -378,6 +383,7 @@ function buildOptsRow(l) {
   const row = document.createElement('div');
   row.className = 'label-opts';
 
+  // pad
   const padWrap = document.createElement('div');
   padWrap.className = 'field';
   padWrap.style.cssText = 'flex-direction:row;align-items:center;gap:6px';
@@ -392,7 +398,37 @@ function buildOptsRow(l) {
   padInp.addEventListener('input', () => { l.pad = padInp.value; });
   padWrap.append(padLbl, padInp);
 
-  row.append(padWrap);
+  // qty stepper
+  const qtyWrap = document.createElement('div');
+  qtyWrap.className = 'field';
+  qtyWrap.style.cssText = 'flex-direction:row;align-items:center;gap:4px';
+  const qtyLbl = document.createElement('label');
+  qtyLbl.style.margin = '0';
+  qtyLbl.textContent = 'Qty';
+  const qtyMinus = document.createElement('button');
+  qtyMinus.className = 'btn-secondary';
+  qtyMinus.style.cssText = 'padding:2px 8px;font-size:.9rem;line-height:1';
+  qtyMinus.textContent = '−';
+  const qtyDisp = document.createElement('span');
+  qtyDisp.style.cssText = 'min-width:24px;text-align:center;font-size:.9rem';
+  qtyDisp.textContent = l.qty;
+  const qtyPlus = document.createElement('button');
+  qtyPlus.className = 'btn-secondary';
+  qtyPlus.style.cssText = 'padding:2px 8px;font-size:.9rem;line-height:1';
+  qtyPlus.textContent = '+';
+  qtyMinus.addEventListener('click', () => {
+    if (l.qty > 1) { l.qty--; qtyDisp.textContent = l.qty; }
+    qtyMinus.disabled = l.qty <= 1;
+  });
+  qtyPlus.addEventListener('click', () => {
+    l.qty++;
+    qtyDisp.textContent = l.qty;
+    qtyMinus.disabled = false;
+  });
+  qtyMinus.disabled = l.qty <= 1;
+  qtyWrap.append(qtyLbl, qtyMinus, qtyDisp, qtyPlus);
+
+  row.append(padWrap, qtyWrap);
   return row;
 }
 
@@ -470,6 +506,12 @@ async function fetchInfo() {
 
 // ── init ──────────────────────────────────────────────────────────────────────
 document.getElementById('add-label-btn').addEventListener('click', addLabel);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.shiftKey)) {
+    e.preventDefault();
+    addLabel();
+  }
+});
 document.getElementById('refresh-btn').addEventListener('click', fetchInfo);
 document.getElementById('preview-btn').addEventListener('click', () => doAction('preview'));
 document.getElementById('print-btn').addEventListener('click', () => doAction('print'));
