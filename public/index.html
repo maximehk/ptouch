@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P-Touch Label Printer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #111;
+    --surface: #1a1a1a;
+    --surface2: #232323;
+    --border: #333;
+    --accent: #4a9eff;
+    --accent-hover: #6ab3ff;
+    --danger: #e05555;
+    --success: #4caf76;
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --radius: 6px;
+  }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; min-height: 100vh; }
+  h1 { font-size: 1.2rem; font-weight: 600; }
+  h2 { font-size: .85rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; }
+  label { font-size: .82rem; color: var(--text-dim); display: block; margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); padding: 6px 10px; font: inherit; outline: none; transition: border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; }
+  input[type=checkbox] { width: auto; accent-color: var(--accent); cursor: pointer; }
+  input[type=number] { width: 80px; }
+  button {
+    border: none; border-radius: var(--radius); padding: 8px 16px; font: inherit; font-weight: 500;
+    cursor: pointer; transition: background .15s, opacity .15s;
+  }
+  .btn-primary  { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; max-width: 1060px; margin: 0 auto; padding: 20px 16px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .panel + .panel { margin-top: 12px; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.grow { flex: 1 1 120px; }
+  .sep { height: 1px; background: var(--border); margin: 14px 0; }
+
+  /* label cards */
+  #labels-list { display: flex; flex-direction: column; gap: 10px; }
+  .label-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .label-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .label-num { font-size: .7rem; font-weight: 700; color: var(--text-dim); background: var(--border); border-radius: 4px; padding: 2px 6px; }
+  .type-toggle { display: flex; gap: 4px; }
+  .type-toggle button { padding: 4px 10px; font-size: .8rem; }
+  .type-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .lines-list { display: flex; flex-direction: column; gap: 6px; }
+  .line-row { display: flex; gap: 6px; align-items: center; }
+  .line-row input { flex: 1; }
+  .line-row button { padding: 4px 8px; font-size: .85rem; flex-shrink: 0; }
+  .label-opts { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .label-opts label { display: flex; align-items: center; gap: 5px; cursor: pointer; margin: 0; font-size: .8rem; }
+  .label-opts .field { flex-direction: row; align-items: center; gap: 6px; }
+  .label-opts .field label { margin: 0; }
+  .image-drop {
+    border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px;
+    text-align: center; color: var(--text-dim); font-size: .82rem; cursor: pointer; transition: border-color .15s;
+  }
+  .image-drop:hover, .image-drop.drag { border-color: var(--accent); color: var(--accent); }
+  .image-preview { max-width: 100%; max-height: 80px; display: block; margin-top: 8px; border-radius: 4px; }
+
+  /* sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 12px; }
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .actions button { width: 100%; font-size: .95rem; padding: 10px; }
+
+  /* preview */
+  #preview-area { display: none; margin-top: 14px; }
+  #preview-img { max-width: 100%; border-radius: 4px; background: #fff; padding: 4px; }
+  .preview-label { font-size: .75rem; color: var(--text-dim); margin-bottom: 6px; }
+
+  /* output */
+  #output-box {
+    background: #0d0d0d; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; font: 12px/1.6 'Menlo','Courier New',monospace; color: #aaa;
+    white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;
+    display: none; margin-top: 14px;
+  }
+  #output-box.ok  { color: var(--success); }
+  #output-box.err { color: var(--danger); }
+
+  /* printer status */
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); display: inline-block; flex-shrink: 0; }
+  .status-dot.ok  { background: var(--success); }
+  .status-dot.err { background: var(--danger); }
+  #info-text { font-size: .78rem; color: var(--text-dim); margin-top: 8px; white-space: pre-wrap; font-family: monospace; display: none; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- main -->
+  <main>
+    <div class="panel">
+      <div class="panel-header">
+        <h1>P-Touch Label Printer</h1>
+        <button class="btn-secondary" id="add-label-btn">+ Add label</button>
+      </div>
+      <div id="labels-list">
+        <p id="empty-msg" style="color:var(--text-dim);font-size:.85rem;text-align:center;padding:20px 0">
+          No labels yet — click <strong>+ Add label</strong>
+        </p>
+      </div>
+      <div id="preview-area">
+        <div class="sep"></div>
+        <p class="preview-label">Preview</p>
+        <img id="preview-img" src="" alt="preview">
+      </div>
+      <div id="output-box"></div>
+    </div>
+  </main>
+
+  <!-- sidebar -->
+  <aside class="sidebar">
+
+    <div class="panel">
+      <div class="panel-header" style="margin-bottom:8px">
+        <h2>Printer</h2>
+        <span id="status-dot" class="status-dot"></span>
+      </div>
+      <button class="btn-secondary" style="width:100%;font-size:.82rem" id="refresh-btn">Refresh status</button>
+      <pre id="info-text"></pre>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-bottom:12px">Global options</h2>
+      <div class="row">
+        <div class="field grow">
+          <label>Font</label>
+          <input id="g-font" placeholder="Helvetica">
+        </div>
+        <div class="field">
+          <label>Size (px)</label>
+          <input id="g-fontsize" type="number" min="4" max="500" placeholder="auto">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="field">
+          <label>Font margin</label>
+          <input id="g-fontmargin" type="number" min="0" placeholder="auto">
+        </div>
+        <div class="field">
+          <label>Align</label>
+          <select id="g-align">
+            <option value="">default</option>
+            <option value="l">Left</option>
+            <option value="c">Center</option>
+            <option value="r">Right</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Copies</label>
+          <input id="g-copies" type="number" min="1" max="99" value="1">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;gap:16px;align-items:center">
+        <label style="display:flex;align-items:center;gap:5px;margin:0;cursor:pointer">
+          <input type="checkbox" id="g-debug"> Debug
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;margin:0;cursor:pointer">
+          <input type="checkbox" id="g-cutbetween" checked> Cut between labels
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;margin:0;cursor:pointer">
+          <input type="checkbox" id="g-finalcut" checked> Final cut
+        </label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="margin:0;white-space:nowrap;font-size:.82rem;color:var(--text-dim)">Force tape px</label>
+          <input id="g-forcetape" type="number" min="1" placeholder="off" style="width:70px">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="field">
+          <label>Timeout (s)</label>
+          <input id="g-timeout" type="number" min="0" placeholder="1" style="width:80px">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel actions">
+      <button class="btn-secondary" id="preview-btn">
+        <span id="spin-preview" class="spinner" style="display:none"></span>Preview PNG
+      </button>
+      <button class="btn-success" id="print-btn">
+        <span id="spin-print" class="spinner" style="display:none"></span>Print
+      </button>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+// ── state ─────────────────────────────────────────────────────────────────────
+const labels = [];          // array of label objects
+const imageFiles = {};      // id -> File
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+// ── label model ───────────────────────────────────────────────────────────────
+function makeLabel() {
+  return { id: uid(), type: 'text', lines: [''], pad: '' };
+}
+
+function addLabel() {
+  labels.push(makeLabel());
+  renderAll();
+}
+
+function removeLabel(id) {
+  const idx = labels.findIndex(l => l.id === id);
+  if (idx !== -1) labels.splice(idx, 1);
+  renderAll();
+}
+
+function setLabelType(id, type) {
+  const l = labels.find(l => l.id === id);
+  if (!l) return;
+  l.type = type;
+  renderAll();
+}
+
+// ── rendering ─────────────────────────────────────────────────────────────────
+function renderAll() {
+  const container = document.getElementById('labels-list');
+  const emptyMsg  = document.getElementById('empty-msg');
+
+  // remove all existing cards (not the empty-msg)
+  container.querySelectorAll('.label-card').forEach(el => el.remove());
+
+  if (labels.length === 0) {
+    emptyMsg.style.display = '';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  labels.forEach((l, idx) => {
+    const card = buildCard(l, idx);
+    container.appendChild(card);
+  });
+}
+
+function buildCard(l, idx) {
+  const card = document.createElement('div');
+  card.className = 'label-card';
+  card.id = 'card-' + l.id;
+
+  // header
+  const header = document.createElement('div');
+  header.className = 'label-card-header';
+
+  const num = document.createElement('span');
+  num.className = 'label-num';
+  num.textContent = '#' + (idx + 1);
+
+  const toggle = document.createElement('div');
+  toggle.className = 'type-toggle';
+
+  const btnText = document.createElement('button');
+  btnText.className = 'btn-secondary' + (l.type === 'text' ? ' active' : '');
+  btnText.textContent = 'Text';
+  btnText.addEventListener('click', () => setLabelType(l.id, 'text'));
+
+  const btnImg = document.createElement('button');
+  btnImg.className = 'btn-secondary' + (l.type === 'image' ? ' active' : '');
+  btnImg.textContent = 'Image';
+  btnImg.addEventListener('click', () => setLabelType(l.id, 'image'));
+
+  toggle.append(btnText, btnImg);
+
+  const spacer = document.createElement('div');
+  spacer.style.flex = '1';
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'btn-danger';
+  removeBtn.style.cssText = 'padding:4px 10px;font-size:.8rem';
+  removeBtn.textContent = 'Remove';
+  removeBtn.addEventListener('click', () => removeLabel(l.id));
+
+  header.append(num, toggle, spacer, removeBtn);
+  card.appendChild(header);
+
+  // content
+  if (l.type === 'text') {
+    card.appendChild(buildTextContent(l));
+  } else {
+    card.appendChild(buildImageContent(l));
+  }
+
+  // options row
+  card.appendChild(buildOptsRow(l));
+
+  return card;
+}
+
+function buildTextContent(l) {
+  const wrap = document.createElement('div');
+
+  const ta = document.createElement('textarea');
+  ta.rows = 3;
+  ta.placeholder = 'Line 1\nLine 2\n...';
+  ta.value = l.lines.join('\n');
+  ta.addEventListener('input', () => { l.lines = ta.value.split('\n'); });
+
+  wrap.appendChild(ta);
+  return wrap;
+}
+
+function buildImageContent(l) {
+  const wrap = document.createElement('div');
+
+  const drop = document.createElement('div');
+  drop.className = 'image-drop';
+  drop.textContent = 'Click or drag a PNG image here';
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/png,image/*';
+  fileInput.style.display = 'none';
+
+  const setFile = (file) => {
+    imageFiles[l.id] = file;
+    drop.textContent = file.name;
+
+    const preview = document.createElement('img');
+    preview.className = 'image-preview';
+    const reader = new FileReader();
+    reader.onload = e => { preview.src = e.target.result; };
+    reader.readAsDataURL(file);
+    drop.appendChild(preview);
+  };
+
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('drag');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  // restore existing file if any
+  if (imageFiles[l.id]) setFile(imageFiles[l.id]);
+
+  wrap.append(drop, fileInput);
+  return wrap;
+}
+
+function buildOptsRow(l) {
+  const row = document.createElement('div');
+  row.className = 'label-opts';
+
+  const padWrap = document.createElement('div');
+  padWrap.className = 'field';
+  padWrap.style.cssText = 'flex-direction:row;align-items:center;gap:6px';
+  const padLbl = document.createElement('label');
+  padLbl.style.margin = '0';
+  padLbl.textContent = 'Left pad px';
+  const padInp = document.createElement('input');
+  padInp.type = 'number';
+  padInp.min = '0';
+  padInp.style.width = '70px';
+  padInp.value = l.pad;
+  padInp.addEventListener('input', () => { l.pad = padInp.value; });
+  padWrap.append(padLbl, padInp);
+
+  row.append(padWrap);
+  return row;
+}
+
+// ── actions ───────────────────────────────────────────────────────────────────
+function globalOpts() {
+  return {
+    font:          document.getElementById('g-font').value.trim(),
+    fontsize:      document.getElementById('g-fontsize').value,
+    fontmargin:    document.getElementById('g-fontmargin').value,
+    align:         document.getElementById('g-align').value,
+    copies:        parseInt(document.getElementById('g-copies').value) || 1,
+    debug:         document.getElementById('g-debug').checked,
+    cutBetween:    document.getElementById('g-cutbetween').checked,
+    finalCut:      document.getElementById('g-finalcut').checked,
+    forceTapeWidth:document.getElementById('g-forcetape').value,
+    timeout:       document.getElementById('g-timeout').value,
+  };
+}
+
+async function doAction(action) {
+  const spinId = action === 'preview' ? 'spin-preview' : 'spin-print';
+  const btnId  = action === 'preview' ? 'preview-btn' : 'print-btn';
+  document.getElementById(spinId).style.display = '';
+  document.getElementById(btnId).disabled = true;
+
+  const payload = { ...globalOpts(), action, labels };
+  const fd = new FormData();
+  fd.append('payload', JSON.stringify(payload));
+  labels.forEach(l => {
+    if (l.type === 'image' && imageFiles[l.id]) {
+      fd.append(l.id, imageFiles[l.id]);
+    }
+  });
+
+  try {
+    const resp = await fetch('/api/print', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    const box = document.getElementById('output-box');
+    box.style.display = 'block';
+    box.className = data.error ? 'err' : 'ok';
+    box.textContent = data.error || data.output || '(no output)';
+
+    if (data.preview) {
+      document.getElementById('preview-img').src = data.preview;
+      document.getElementById('preview-area').style.display = 'block';
+    }
+  } catch (e) {
+    const box = document.getElementById('output-box');
+    box.style.display = 'block';
+    box.className = 'err';
+    box.textContent = 'Request failed: ' + e.message;
+  } finally {
+    document.getElementById(spinId).style.display = 'none';
+    document.getElementById(btnId).disabled = false;
+  }
+}
+
+async function fetchInfo() {
+  const dot    = document.getElementById('status-dot');
+  const infoEl = document.getElementById('info-text');
+  dot.className = 'status-dot';
+  try {
+    const resp = await fetch('/api/info');
+    const data = await resp.json();
+    dot.className = 'status-dot ' + (data.error ? 'err' : 'ok');
+    infoEl.style.display = '';
+    infoEl.textContent = data.error || data.output;
+  } catch (e) {
+    dot.className = 'status-dot err';
+    infoEl.style.display = '';
+    infoEl.textContent = 'Could not reach server';
+  }
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+document.getElementById('add-label-btn').addEventListener('click', addLabel);
+document.getElementById('refresh-btn').addEventListener('click', fetchInfo);
+document.getElementById('preview-btn').addEventListener('click', () => doAction('preview'));
+document.getElementById('print-btn').addEventListener('click', () => doAction('print'));
+
+addLabel();
+fetchInfo();
+</script>
+</body>
+</html>
